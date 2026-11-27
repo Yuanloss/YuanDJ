@@ -95,6 +95,7 @@ export interface AppSettings {
   lyricInactiveOpacity: number // 非焦点歌词透明度 (5-100)
   lyricStyleMigrated: boolean // 是否已把歌词样式迁移到高可读默认值（一次性）
 requestRulesMigrated: boolean // 是否已把点歌规则迁移到 1s/10s/队列 50（一次性）
+  updateMirror: string // 自定义更新加速前缀（留空=内置镜像列表自动选择）
   // 心率监测
   lastHeartRateDevice: string // 上次连接的蓝牙心率设备ID（MAC）
   lastHeartRateDeviceName: string // 上次连接的蓝牙心率设备名

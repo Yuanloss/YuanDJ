@@ -1,15 +1,16 @@
 import { app, BrowserWindow, shell, ipcMain } from 'electron'
 import { spawnSync } from 'child_process'
 import { join } from 'path'
-import { existsSync, cpSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { store } from '../src/main/services/store'
 
-// 数据目录：YuanDJ（新品牌）。首次启动时把旧 BxNcm DJ 目录里的
-// 登录态 / 设置 / 播放队列等迁过来，避免换名后要重新登录。
+// 数据目录：YuanDJ（新品牌）。
+// 首次启动时**只迁移登录态**（B站/网易云的 cookie 与账号信息），
+// 其余设置一律使用新版本的默认值；音频缓存、历史、歌单缓存都不迁移。
 const APP_DIR_NAME = 'YuanDJ'
 const userDataDir = join(app.getPath('appData'), APP_DIR_NAME)
 
-function migrateLegacyDataDir(): void {
+function migrateLegacyLogin(): void {
   if (existsSync(userDataDir)) return
   const legacyDirs = [
     join(app.getPath('appData'), 'BxNcm-dj'),
@@ -17,17 +18,43 @@ function migrateLegacyDataDir(): void {
   ]
   const legacy = legacyDirs.find((d) => existsSync(d))
   if (!legacy) return
+
   try {
-    // 大块缓存（音频缓存 / GPU 缓存等）不迁移，启动后会重新生成
-    const skip = /[\\/](Cache|Code Cache|GPUCache|DawnGraphiteCache|DawnWebGPUCache|blob_storage|Service Worker|audio-cache|VideoDecodeStats|Crashpad|logs)([\\/]|$)/
-    cpSync(legacy, userDataDir, { recursive: true, filter: (src) => !skip.test(src) })
-    console.log('[Bootstrap] 已迁移旧数据目录:', legacy, '->', userDataDir)
+    mkdirSync(userDataDir, { recursive: true })
+
+    // 登录态在 store 里是无前缀键：bilibili_cookie / bilibili_uid / bilibili_uname ...
+    const loginKey = /^(bilibili|netease)_(cookie|uid|uname|face)$/
+    const loginSettings: Record<string, unknown> = {}
+    const legacyFile = join(legacy, 'app-data.json')
+    if (existsSync(legacyFile)) {
+      const parsed = JSON.parse(readFileSync(legacyFile, 'utf-8'))
+      const settings = (parsed && parsed.settings) || {}
+      for (const [k, v] of Object.entries(settings)) {
+        if (loginKey.test(k)) loginSettings[k] = v
+      }
+    }
+
+    writeFileSync(
+      join(userDataDir, 'app-data.json'),
+      JSON.stringify(
+        { settings: loginSettings, history: [], cache: [], playlistCache: [], lastRefreshTime: {} },
+        null,
+        2
+      ),
+      'utf-8'
+    )
+    const keys = Object.keys(loginSettings)
+    console.log(
+      keys.length
+        ? `[Bootstrap] 已迁移登录态（${keys.join(', ')}），其余设置使用默认值`
+        : '[Bootstrap] 旧数据中没有登录态，按全新配置启动'
+    )
   } catch (e) {
-    console.warn('[Bootstrap] 旧数据目录迁移失败，将使用全新配置:', (e as Error).message)
+    console.warn('[Bootstrap] 登录态迁移失败，将按全新配置启动:', (e as Error).message)
   }
 }
 
-migrateLegacyDataDir()
+migrateLegacyLogin()
 app.setPath('userData', userDataDir)
 import { stopObsServer, killStaleHeartRateProcesses } from '../src/main/services/obs'
 import { destroyDanmakuWindow, registerDanmakuFixShortcutFromStore, unregisterDanmakuFixShortcut } from '../src/main/services/danmaku/danmaku-window'

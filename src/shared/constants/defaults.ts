@@ -246,6 +246,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lyricInactiveOpacity: 45, // 非焦点歌词透明度（越低越突出当前行）
   lyricStyleMigrated: false, // 一次性迁移标记：首次启动时套用新的高可读歌词默认值
 requestRulesMigrated: false, // 一次性迁移标记：把点歌规则改成 1 秒/10 秒/队列 50
+  updateMirror: '', // 更新加速前缀，留空则使用内置镜像列表
   // 心率监测
   lastHeartRateDevice: '', // 上次连接的蓝牙心率设备ID（MAC）
   lastHeartRateDeviceName: '', // 上次连接的蓝牙心率设备名
