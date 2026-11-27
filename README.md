@@ -47,7 +47,7 @@ YuanDJ 是一个 Windows 桌面端「直播点歌」工具：自动连 B 站直�
 1. 打开仓库的 **Releases** 页，下载 `YuanDJ.Setup.x.y.z.exe`（安装版），或解压 `win-unpacked` 直接运行 `YuanDJ.exe`。
 2. 系统要求：**Windows 10 / 11 x64**；心率功能需要 .NET Framework 4.x 与 Windows 10 SDK（首次连接时自动编译小工具）。
 3. 安装包未做代码签名，Windows SmartScreen 可能提示「未知发布者」，点「更多信息 → 仍要运行」即可。
-4. 首次启动会在 `%APPDATA%\YuanDJ` 建立数据目录；如果检测到旧版 `BxNcm-dj` 数据目录，会自动迁移登录态与设置（不迁移大体积缓存）。
+4. 首次启动会在 `%APPDATA%\YuanDJ` 建立数据目录；如果检测到旧版 `BxNcm-dj` 数据目录，会**只迁移登录态**（B站/网易云 cookie 与账号信息），其它设置使用新版本默认值，不迁移历史、歌单与缓存。
 
 ---
 
@@ -192,7 +192,9 @@ YuanDJ 是一个 Windows 桌面端「直播点歌」工具：自动连 B 站直�
 看「设置 → 关于 → 日志」：常见原因是冷却中（会提示还需多少秒）、队列已满（默认 50）、队列里已有同一首、或分P不存在（已回退第一P）。
 
 **Q：检查更新失败？**
-更新走 GitHub Releases（`releases.atom` → `latest.yml`）。需要仓库已发布正式 Release 且版本号大于当前版本；国内直连 GitHub 不稳定时也会失败，属正常现象。
+YuanDJ 的更新是**多源自动切换**的：依次尝试 GitHub 直连与 `ghfast.top`、`gh-proxy.com`、`hk.gh-proxy.com`、`ghproxy.net`、`github.moeyy.xyz` 等加速镜像，哪个通用哪个；下载安装包时同样自动换源，并在下载完成后校验 sha512，所以国内网络一般也能正常更新。
+
+若全部失败：确认网络可用；或在配置 `%APPDATA%\YuanDJ\app-data.json` 里设置 `app_updateMirror` 为你自己的加速前缀（会优先使用）；并确认仓库已发布**正式** Release（非 draft / pre-release）且版本号大于当前版本。
 
 **Q：OBS 里叠加层空白？**
 确认「OBS捕获 → 启用 HTTP 服务」已开启，端口与地址一致；再刷新浏览器源。
@@ -290,7 +292,8 @@ YuanDJ 在 BxNcm DJ v1.2.2 基础上做了以下调整：
 **工程 / 品牌**
 
 - 更名 YuanDJ，appId、安装包名、窗口/托盘/界面文案全部替换
-- 数据目录迁移到 `%APPDATA%\YuanDJ`（首次启动自动迁移旧数据）
+- 数据目录迁移到 `%APPDATA%\YuanDJ`；首次启动**只迁移登录态**，其它设置使用新版本默认值
+- **更新机制改为多源自动切换**：直连 + 多个国内加速镜像，拉 `latest.yml` 与下载安装包都会自动换源，下载后校验 sha512
 - 自动更新检查失败不再弹全屏遮罩弹窗（仅记录状态）
 - 补充 LICENSE / NOTICE，明确原作者版权
 
