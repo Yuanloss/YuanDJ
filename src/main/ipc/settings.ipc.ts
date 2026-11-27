@@ -1,0 +1,196 @@
+import { ipcMain, dialog } from 'electron'
+import { writeFileSync, readFileSync } from 'fs'
+import { store } from '../services/store'
+import { DEFAULT_SETTINGS } from '../../shared/constants/defaults'
+import { getObsServerPort } from '../services/obs'
+import { audioCache } from '../services/player/audio-cache'
+import { emoticonCache } from '../services/emoticon-cache'
+
+const APP_PREFIX = 'app_'
+const OLD_SETTINGS_KEY = 'app_settings'
+const MIGRATION_DONE_KEY = 'app__migration_done'
+
+/**
+ * 设置持久化：采用与登录信息一致的逐键保存模式
+ * 
+ * 登录信息保存模式（已验证可靠，单键单次 saveToDisk）：
+ *   store.set('bilibili_cookie', JSON.stringify(cookieMap))
+ *   settingsRepo.set('bilibili_uname', result.uname)
+ * 
+ * 设置保存模式（逐键但批量落盘，减少 I/O）：
+ *   settingsRepo.setBatch([['app_theme', '"dark"'], ['app_accentColor', '"#00b5e5"'], ...])
+ */
+
+function migrateOldFormat(): boolean {
+  // 已迁移过的跳过
+  if (store.get(MIGRATION_DONE_KEY)) return false
+
+  const old = store.get(OLD_SETTINGS_KEY)
+  if (!old) return false
+  try {
+    const parsed = JSON.parse(old)
+    const entries: [string, string][] = Object.entries(parsed).map(
+      ([key, value]) => [`${APP_PREFIX}${key}`, JSON.stringify(value)]
+    )
+    // 批量写入（一次落盘）+ 删除旧键
+    store.setBatch(entries)
+    store.delete(OLD_SETTINGS_KEY)
+    store.set(MIGRATION_DONE_KEY, '1')
+    return true
+  } catch (e) {
+    console.error('[SettingsIPC] 旧格式迁移失败:', (e as Error).message)
+    return false
+  }
+}
+
+export function registerSettingsIpc() {
+  // 启动时迁移旧格式
+  migrateOldFormat()
+
+  // 无论是否迁移成功，当前所有设置键已在 store 中
+
+  // ====== 启动加载 ======
+
+  /** 启动数据 — 主题色、窗口信息（最先读取，用于加载窗口） */
+  ipcMain.handle('boot:load', () => {
+    try {
+      return store.loadBootData()
+    } catch (e) {
+      console.error('[SettingsIPC] 读取启动数据失败:', (e as Error).message)
+      return { theme: 'dark', accentColor: '#00b5e5', alwaysOnTop: false, resizable: true, closeToTray: true, closeToTrayPrompt: true, autoUpdate: true, windowPosition: null }
+    }
+  })
+
+  /** 应用数据 — 软件本体设置 */
+  ipcMain.handle('app:load', () => {
+    try {
+      return store.loadAppData()
+    } catch (e) {
+      console.error('[SettingsIPC] 读取应用数据失败:', (e as Error).message)
+      return {}
+    }
+  })
+
+  // ====== 原有设置读写 ======
+
+  ipcMain.handle('settings:get', () => {
+    try {
+      const kvMap: Record<string, string> = {}
+      const all = store.getAll()
+      for (const [k, v] of Object.entries(all)) {
+        if (k.startsWith(APP_PREFIX)) kvMap[k] = v
+      }
+      const appKeyCount = Object.keys(kvMap).length
+
+      if (appKeyCount === 0) {
+        return DEFAULT_SETTINGS
+      }
+
+      // 将逐键值合并为设置对象
+      const settings: any = { ...DEFAULT_SETTINGS }
+      for (const [fullKey, jsonValue] of Object.entries(kvMap)) {
+        const key = fullKey.slice(APP_PREFIX.length) // 去掉 app_ 前缀
+        try {
+          settings[key] = JSON.parse(jsonValue)
+        } catch {
+          settings[key] = jsonValue
+        }
+      }
+      return settings
+    } catch (e) {
+      console.error('[SettingsIPC] 读取设置失败:', (e as Error).message)
+      return DEFAULT_SETTINGS
+    }
+  })
+
+  ipcMain.handle('settings:save', (_event, entries: [string, string][]) => {
+    try {
+      store.setBatch(entries)
+      return { success: true }
+    } catch (e) {
+      console.error('[SettingsIPC] 保存设置失败:', (e as Error).message)
+      return { success: false }
+    }
+  })
+
+  ipcMain.handle('store:reset-data', async () => {
+    try {
+      store.resetAllData()
+      audioCache.clearAll()
+      emoticonCache.clearAll()
+      return { success: true }
+    } catch (e) {
+      console.error('[SettingsIPC] 重置数据失败:', (e as Error).message)
+      return { success: false }
+    }
+  })
+
+  // 导出配置
+  ipcMain.handle('store:export-config', async () => {
+    try {
+      const result = await dialog.showSaveDialog({
+        title: '导出配置',
+        defaultPath: 'BxNcm-config.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (result.canceled || !result.filePath) return null
+      const config = store.exportAll()
+      writeFileSync(result.filePath, JSON.stringify(config, null, 2), 'utf-8')
+      return result.filePath
+    } catch (e) {
+      console.error('[SettingsIPC] 导出配置失败:', (e as Error).message)
+      return null
+    }
+  })
+
+  // 导入配置
+  ipcMain.handle('store:import-config', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: '导入配置',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile']
+      })
+      if (result.canceled || result.filePaths.length === 0) return false
+      const raw = readFileSync(result.filePaths[0], 'utf-8')
+      const config = JSON.parse(raw)
+      // 基础校验：必须是对象，且至少包含 settings 字段
+      if (!config || typeof config !== 'object') {
+        console.error('[SettingsIPC] 导入配置失败：根节点不是对象')
+        return false
+      }
+      if (!config.settings || typeof config.settings !== 'object') {
+        console.error('[SettingsIPC] 导入配置失败：缺少 settings 字段')
+        return false
+      }
+      store.importAll(config)
+      return true
+    } catch (e) {
+      console.error('[SettingsIPC] 导入配置失败:', (e as Error).message)
+      return false
+    }
+  })
+
+  // OBS 捕获端口查询
+  ipcMain.handle('obs-overlay:get-port', () => {
+    try {
+      return getObsServerPort()
+    } catch {
+      return 0
+    }
+  })
+
+  // 文件选择对话框：选择图片
+  ipcMain.handle('dialog:select-image-file', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '选择图片文件',
+      filters: [
+        { name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] },
+        { name: '所有文件', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+}

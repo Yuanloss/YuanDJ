@@ -1,0 +1,39 @@
+{
+  "name": "BxNcm-dj",
+  "version": "1.2.2",
+  "description": "BxNcm DJ - 网易云+B站直播点歌助手",
+  "author": "Taumata",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Taumata-wwq/BxNcm-DJ"
+  },
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "set \"ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\" && set \"ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/\" && node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('dist-electron',{recursive:true,force:true})\" && vite build && electron-builder",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "pinia": "^2.3.0",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vue-tsc": "^2.2.0"
+  }
+}

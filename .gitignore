@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-electron/
+release/
+data/
+*.log
+*.exe
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+blivechat-dev/
+bilibili-tool/
+bilibili-API-collect-trunk/
+参考/
