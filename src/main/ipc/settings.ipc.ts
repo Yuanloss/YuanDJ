@@ -130,7 +130,7 @@ export function registerSettingsIpc() {
     try {
       const result = await dialog.showSaveDialog({
         title: '导出配置',
-        defaultPath: 'BxNcm-config.json',
+        defaultPath: 'YuanDJ-config.json',
         filters: [{ name: 'JSON', extensions: ['json'] }]
       })
       if (result.canceled || !result.filePath) return null

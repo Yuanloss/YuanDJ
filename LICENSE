@@ -1,7 +1,7 @@
 MIT License
 
 Copyright (c) 2026 Taumata (BxNcm DJ, https://github.com/Taumata-wwq/BxNcm-DJ)
-Copyright (c) 2026 本仓库的本地修改者（见 NOTICE.md）
+Copyright (c) 2026 Yuanloss (YuanDJ, https://github.com/Yuanloss/YuanDJ)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,5 +26,5 @@ SOFTWARE.
 
 上游项目 BxNcm DJ（作者 Taumata）在 README.md 的「许可证」一节声明为
 "MIT License"，但仓库中并未提供 LICENSE 文件，package.json 也没有 license
-字段。本文件由本仓库的修改者按 MIT 标准全文补全，并保留了原作者的版权行；
+字段。本文件由 YuanDJ 维护者 Yuanloss 按 MIT 标准全文补全，并保留了原作者的版权行；
 如原作者后续提供正式的 LICENSE 文件，以其为准。

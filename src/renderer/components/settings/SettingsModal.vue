@@ -181,6 +181,10 @@
             <span>同歌曲间隔(秒)</span>
             <input v-model.number="settingsStore.settings.songCooldown" type="number" class="input" />
           </div>
+          <p class="section-desc">
+            弹幕点歌格式：<b>点歌 歌名</b> / <b>点歌 歌名 歌手</b> / <b>点歌 网易云ID</b> / <b>点歌 BV号</b> /
+            <b>点歌 BV号 p3</b>（点该视频的第 3 个分P；分P不存在时回退第一P）。
+          </p>
         </div>
 
         <!-- 空闲歌单设置 -->
@@ -547,6 +551,26 @@
           </p>
         </div>
 
+        <!-- 播放区外观 -->
+        <div id="section-player-appearance" class="section">
+          <h3>播放区外观</h3>
+          <div class="setting-row">
+            <span>播放时播放区背景透明</span>
+            <label class="toggle-label">
+              <input
+                type="checkbox"
+                :checked="settingsStore.settings.playerTransparent"
+                @change="settingsStore.settings.playerTransparent = !settingsStore.settings.playerTransparent"
+              />
+              <span class="toggle-text">{{ settingsStore.settings.playerTransparent ? '已开启' : '已关闭' }}</span>
+            </label>
+          </div>
+          <p class="section-desc">
+            开启后，播放歌曲时只有右侧的歌词/视频区域背景透明（可透出桌面），其他区域保持不透明；<br/>
+            播放区右上角还有「置顶」和「只显示」两个按钮：置顶会把窗口钉在最上层并自动切到精简模式（只留视频/歌词 + 控制栏）。
+          </p>
+        </div>
+
         </div><!-- end player -->
 
 
@@ -864,11 +888,12 @@
               <span class="status-text" :class="{ connected: heartRateValue > 0 }">
                 {{ heartRateValue > 0 ? heartRateValue + ' 次/分' : '--' }}
               </span>
-              <button class="btn" @click="toggleHeartRateConnection">
-                {{ heartRateConnected ? '断开' : '连接' }}
+              <button class="btn" :disabled="heartRateConnecting" @click="toggleHeartRateConnection">
+                {{ heartRateConnecting ? '连接中…' : (heartRateConnected ? '断开' : '连接') }}
               </button>
             </div>
           </div>
+          <p class="section-desc hr-status" v-if="heartRateStatus">{{ heartRateStatus }}</p>
           <div class="setting-row">
             <span>蓝牙设备</span>
             <div class="device-row">
@@ -898,6 +923,18 @@
           <p class="section-desc">
             打开「样式设置地址」可调整心率工具的符号、数字、描边、字体等样式。
           </p>
+
+          <!-- 接入 OBS 简要说明 -->
+          <div class="hr-obs-guide">
+            <div class="guide-title">如何在 OBS 里显示心率</div>
+            <ol>
+              <li>先到「OBS捕获」页勾选<b>启用 HTTP 服务</b>，上方的「捕获地址」才会可用（当前端口：{{ obsPort > 0 ? obsPort : '未启动' }}）。</li>
+              <li>手环戴好并在广播/运动状态，点<b>扫描</b>选中设备，再点<b>连接</b>；「当前心率」出现数字即成功。</li>
+              <li>OBS 里「来源 → + → 浏览器」，URL 粘贴上面的<b>捕获地址</b>，宽高建议 400 × 140。</li>
+              <li>页面背景是透明的，直接叠在画面上即可；颜色/字体/符号点「样式设置地址」后的<b>打开</b>调整，OBS 会实时刷新。</li>
+              <li>主界面标题栏右侧也有心率显示，点它可以直接回到这里。</li>
+            </ol>
+          </div>
         </div>
 
         </div><!-- end obs-tools -->
@@ -910,9 +947,14 @@
         <div id="section-about" class="section">
           <h3>关于</h3>
           <div class="about-header">
-            <span class="about-text">BxNcm DJ v{{ appVersion }} by Taumata<br/>技术栈: Vue3 + Electron + TypeScript</span>
+            <span class="about-text">
+              <b>YuanDJ</b> v{{ appVersion }} by Yuanloss<br/>
+              基于 <a class="thanks-link" href="#" @click.prevent="openLink('https://github.com/Taumata-wwq/BxNcm-DJ')">BxNcm DJ</a>（原作者 <b>Taumata</b>）修改 · MIT License<br/>
+              技术栈: Vue3 + Electron + TypeScript
+            </span>
             <div class="about-thanks">
               <span class="thanks-label">致谢:</span>
+              <a class="thanks-link" href="#" @click.prevent="openLink('https://github.com/Taumata-wwq/BxNcm-DJ')">BxNcm DJ (Taumata)</a>
               <a class="thanks-link" href="#" @click.prevent="openLink('https://github.com/xfgryujk/blivechat')">blivechat</a>
               <a class="thanks-link" href="#" @click.prevent="openLink('https://github.com/Zeppelinpp/bilibili-streamer')">bilibili-streamer</a>
               <a class="thanks-link" href="#" @click.prevent="openLink('https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced')">api-enhanced</a>
@@ -1036,6 +1078,9 @@ const heartRateDevices = ref<{ id: string; name: string; address: string; model:
 const heartRateDevice = ref('')
 const heartRateConnected = ref(false)
 const heartRateValue = ref(0)
+const heartRateConnecting = ref(false)
+const heartRateStatus = ref('')
+let heartRateConnectTimer: ReturnType<typeof setTimeout> | null = null
 let heartRateWs: WebSocket | null = null
 
 // CustomSelect 选项
@@ -1135,6 +1180,7 @@ const sectionToCategory: Record<string, string> = {
   'lyric': 'player',
   'lyric-style': 'player',
   'mv-mode': 'player',
+  'player-appearance': 'player',
   'lyric-bg': 'player',
   'danmaku-general': 'danmaku',
   'danmaku-block': 'danmaku',
@@ -1174,6 +1220,24 @@ function switchCategory(catId: string) {
   }
 }
 
+/** 从主界面心率胶囊等入口跳转：定位到指定 section 并高亮一下 */
+function applySettingsTarget() {
+  const target = authStore.settingsTarget
+  if (!target) return
+  authStore.settingsTarget = ''
+  activeCategory.value = sectionToCategory[target] || 'basic'
+  setTimeout(() => {
+    const el = document.getElementById(`section-${target}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'auto', block: 'start' })
+    el.classList.add('section-flash')
+    setTimeout(() => el.classList.remove('section-flash'), 1600)
+  }, 120)
+}
+
+// 设置已处于打开状态时再点入口（例如标题栏心率胶囊），同样能跳转
+watch(() => authStore.settingsTarget, (t) => { if (t) applySettingsTarget() })
+
 /** 滚动时自动高亮当前可见 section 所属的分类 */
 function onBodyScroll() {
   if (navLocked) return
@@ -1207,6 +1271,8 @@ onMounted(async () => {
   try { cacheSongs.value = await window.electronAPI.getAudioCacheList() } catch {}
   try { idleQueueSize.value = await window.electronAPI.getIdleQueueSize() } catch {}
   try { obsPort.value = await window.electronAPI.getObsPort() } catch {}
+  // 从主界面跳转进来时定位到指定 section（如心率监测）
+  applySettingsTarget()
   try {
     danmakuWindowOpen.value = await window.electronAPI.isDanmakuWindowOpen()
     danmakuWindowFixed.value = settingsStore.settings.danmakuWindowFixed
@@ -1288,6 +1354,7 @@ onMounted(async () => {
 // 关闭前保存当前分类与滚动位置
 onBeforeUnmount(() => {
   settingsMemory.category = activeCategory.value
+  if (heartRateConnectTimer) { clearTimeout(heartRateConnectTimer); heartRateConnectTimer = null }
   const body = settingsBodyRef.value
   if (body) {
     settingsMemory.scrollTop = body.scrollTop
@@ -1805,12 +1872,25 @@ async function toggleHeartRateConnection() {
     }
     heartRateConnected.value = false
     heartRateValue.value = 0
+    heartRateConnecting.value = false
+    heartRateStatus.value = '已断开'
     return
   }
   if (!heartRateDevice.value) {
     showToast('请先选择蓝牙设备', 'warning')
     return
   }
+  // 连接过程反馈：按钮变「连接中…」，并持续显示设备端返回的状态
+  heartRateConnecting.value = true
+  heartRateStatus.value = '正在连接设备…（首次连接可能要 5–30 秒；若被手机占用会自动重试）'
+  if (heartRateConnectTimer) clearTimeout(heartRateConnectTimer)
+  heartRateConnectTimer = setTimeout(() => {
+    if (!heartRateConnected.value) {
+      heartRateConnecting.value = false
+      heartRateStatus.value = '连接超时：请确认手环没有连着手机（小米运动健康等）、已佩戴并唤醒后重试'
+      showToast('心率连接超时，请看设置里的状态提示', 'warning')
+    }
+  }, 35000)
   try {
     const port = obsPort.value > 0 ? obsPort.value : 4680
     const ws = new WebSocket(`ws://localhost:${port}/heart-rate`)
@@ -1827,6 +1907,9 @@ async function toggleHeartRateConnection() {
             heartRateValue.value = data.hr
           } else if (data.type === 'connected') {
             heartRateConnected.value = true
+            heartRateConnecting.value = false
+            heartRateStatus.value = '已连接' + (data.mode === 'gatt' ? '（标准心率服务）' : '（广播模式）')
+            if (heartRateConnectTimer) { clearTimeout(heartRateConnectTimer); heartRateConnectTimer = null }
             settingsStore.settings.lastHeartRateDevice = heartRateDevice.value
             if (data.name) {
               settingsStore.settings.lastHeartRateDeviceName = data.name
@@ -1834,11 +1917,17 @@ async function toggleHeartRateConnection() {
           } else if (data.type === 'disconnected') {
             heartRateConnected.value = false
             heartRateValue.value = 0
+            heartRateConnecting.value = false
+            heartRateStatus.value = '已断开'
           } else if (data.type === 'error') {
             showToast('心率设备错误：' + data.message.replace(/`n/g, '\n'), 'error')
             heartRateConnected.value = false
+            heartRateConnecting.value = false
+            heartRateStatus.value = ''
+            if (heartRateConnectTimer) { clearTimeout(heartRateConnectTimer); heartRateConnectTimer = null }
           } else if (data.type === 'status') {
-            // 显示连接进度，不弹窗
+            // 显示连接进度（正在连接/被占用/回退广播…），不弹窗
+            if (data.message) heartRateStatus.value = String(data.message)
           }
         }
       } catch {}
@@ -1846,9 +1935,15 @@ async function toggleHeartRateConnection() {
     ws.onclose = () => {
       // ws 关闭不改变 heartRateConnected（server 端 monitor 仍在跑）
       heartRateWs = null
+      if (heartRateConnecting.value) {
+        heartRateConnecting.value = false
+        heartRateStatus.value = '与心率服务的连接已关闭，请重试'
+      }
     }
     ws.onerror = () => {
       heartRateWs = null
+      heartRateConnecting.value = false
+      heartRateStatus.value = ''
       showToast('心率服务连接失败，请确认 OBS 捕获服务已开启', 'error')
     }
   } catch (e) {
@@ -1884,7 +1979,10 @@ async function syncHeartRateState() {
             heartRateValue.value = data.hr
           } else if (data.type === 'connected') {
             heartRateConnected.value = true
+            heartRateConnecting.value = false
             heartRateDevice.value = savedId
+            heartRateStatus.value = '已连接' + (data.mode === 'gatt' ? '（标准心率服务）' : '（广播模式）')
+            if (heartRateConnectTimer) { clearTimeout(heartRateConnectTimer); heartRateConnectTimer = null }
             // 保存设备名到 settings store，下次启动能显示
             if (data.name) {
               settingsStore.settings.lastHeartRateDeviceName = data.name
@@ -1892,8 +1990,15 @@ async function syncHeartRateState() {
           } else if (data.type === 'disconnected') {
             heartRateConnected.value = false
             heartRateValue.value = 0
+            heartRateConnecting.value = false
+            heartRateStatus.value = '已断开'
+          } else if (data.type === 'error') {
+            heartRateConnecting.value = false
+            heartRateStatus.value = ''
+            showToast('心率设备错误：' + String(data.message || '').replace(/`n/g, '\n'), 'error')
           } else if (data.type === 'status') {
-            // 静默处理
+            // 启动时自动连接也显示进度
+            if (data.message && !heartRateConnected.value) heartRateStatus.value = String(data.message)
           }
         }
       } catch {}
@@ -1978,6 +2083,25 @@ function copyHeartRateStyleUrl() {
 .section { margin-bottom: 16px; }
 .section h3 { font-size: 12px; font-weight: 600; color: var(--section-title); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--section-border); }
 .section-desc { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; line-height: 1.4; }
+/* 心率连接过程中的状态提示 */
+.hr-status { color: var(--accent); margin: -2px 0 8px 0; word-break: break-all; }
+
+/* 心率工具的 OBS 接入说明 */.hr-obs-guide {
+  margin-top: 10px; padding: 10px 12px;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+}
+.hr-obs-guide .guide-title { font-size: 11px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+.hr-obs-guide ol { margin: 0; padding-left: 18px; }
+.hr-obs-guide li { font-size: 11px; color: var(--text-secondary); line-height: 1.75; }
+.hr-obs-guide b { color: var(--text-primary); font-weight: 600; }
+
+/* 从主界面跳转定位后的短暂高亮 */
+.section-flash { animation: section-flash 1.6s ease-out; }
+@keyframes section-flash {
+  0% { box-shadow: inset 0 0 0 1px var(--accent); }
+  100% { box-shadow: inset 0 0 0 1px transparent; }
+}
 .mv-audio-desc .mv-source-tag { color: var(--accent); font-weight: 600; }
 .mv-audio-desc .mv-warn { color: var(--accent); font-weight: 600; }
 .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; color: var(--text-primary); }

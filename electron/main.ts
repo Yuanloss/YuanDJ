@@ -1,14 +1,35 @@
 import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { spawnSync } from 'child_process'
 import { join } from 'path'
-import { existsSync } from 'fs'
+import { existsSync, cpSync } from 'fs'
 import { store } from '../src/main/services/store'
 
-// 兼容旧版 bx-ncm-dj 数据目录：若磁盘中已存在则直接复用，否则使用默认 BxNcm-dj
-const oldDataDir = join(app.getPath('appData'), 'bx-ncm-dj')
-if (existsSync(oldDataDir)) {
-  app.setPath('userData', oldDataDir)
+// 数据目录：YuanDJ（新品牌）。首次启动时把旧 BxNcm DJ 目录里的
+// 登录态 / 设置 / 播放队列等迁过来，避免换名后要重新登录。
+const APP_DIR_NAME = 'YuanDJ'
+const userDataDir = join(app.getPath('appData'), APP_DIR_NAME)
+
+function migrateLegacyDataDir(): void {
+  if (existsSync(userDataDir)) return
+  const legacyDirs = [
+    join(app.getPath('appData'), 'BxNcm-dj'),
+    join(app.getPath('appData'), 'bx-ncm-dj')
+  ]
+  const legacy = legacyDirs.find((d) => existsSync(d))
+  if (!legacy) return
+  try {
+    // 大块缓存（音频缓存 / GPU 缓存等）不迁移，启动后会重新生成
+    const skip = /[\\/](Cache|Code Cache|GPUCache|DawnGraphiteCache|DawnWebGPUCache|blob_storage|Service Worker|audio-cache|VideoDecodeStats|Crashpad|logs)([\\/]|$)/
+    cpSync(legacy, userDataDir, { recursive: true, filter: (src) => !skip.test(src) })
+    console.log('[Bootstrap] 已迁移旧数据目录:', legacy, '->', userDataDir)
+  } catch (e) {
+    console.warn('[Bootstrap] 旧数据目录迁移失败，将使用全新配置:', (e as Error).message)
+  }
 }
-import { stopObsServer } from '../src/main/services/obs'
+
+migrateLegacyDataDir()
+app.setPath('userData', userDataDir)
+import { stopObsServer, killStaleHeartRateProcesses } from '../src/main/services/obs'
 import { destroyDanmakuWindow, registerDanmakuFixShortcutFromStore, unregisterDanmakuFixShortcut } from '../src/main/services/danmaku/danmaku-window'
 import { createTray, destroyTray } from '../src/main/services/tray'
 import { initUpdater } from '../src/main/services/updater'
@@ -31,23 +52,19 @@ let skipCloseToTray = false  // 跳过收起到托盘逻辑（用于托盘"退�
 let isInLoginPhase = false  // 用户处于登录界面时，强制退出而非收起到托盘
 const QUIT_TIMEOUT = 5000  // 渲染进程无响应时的超时保护
 
-function getThemeBgColor(): string {
-  const boot = store.loadBootData()
-  return boot.theme === 'light' ? '#f0f0f0' : '#1e1e1e'
-}
-
 function loadWindowOptions() {
   const boot = store.loadBootData()
   const win: Electron.BrowserWindowConstructorOptions = {
-    title: 'BxNcm DJ',
+    title: 'YuanDJ',
     width: 750,
     height: 500,
     minWidth: 700,
     minHeight: 500,
     frame: false,
-    transparent: false,
+    // 透明窗口：让「播放区背景透明」可以把桌面透出来，其余区域由 CSS 自己铺底色
+    transparent: true,
     show: false,
-    backgroundColor: getThemeBgColor(),
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -239,6 +256,10 @@ app.whenReady().then(() => {
     app.quit()
   })
 
+  // 上次异常退出（崩溃 / 被任务管理器强杀）可能残留 heart-rate.exe，
+  // 它会一直占着蓝牙链路，导致这次怎么都连不上，所以启动时先清一遍
+  killStaleHeartRateProcesses()
+
   createWindow()
 
   // 创建系统托盘（传入退出回调，跳过收起到托盘逻辑）
@@ -277,4 +298,16 @@ app.on('will-quit', () => {
   store.flush()
   stopObsServer()
   unregisterDanmakuFixShortcut()
+})
+
+// 部分退出路径（app.exit / 超时强退）不会走 will-quit，这里再兜一次
+app.on('before-quit', () => {
+  stopObsServer()
+})
+
+// 最后一道保险：进程即将结束时同步清理心率子进程（异步 taskkill 来不及执行）
+process.on('exit', () => {
+  try {
+    spawnSync('taskkill', ['/im', 'heart-rate.exe', '/F'], { stdio: 'ignore', timeout: 2000 })
+  } catch {}
 })

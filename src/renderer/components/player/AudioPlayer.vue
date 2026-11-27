@@ -165,6 +165,19 @@ onMounted(() => {
       audioEl.value.currentTime = time
     }
   }))
+
+  // 单曲循环：媒体已 ended 时 seek+resume 可能被浏览器忽略，这里直接重置并重新播放
+  ipcCleanups.push(window.electronAPI.onPlayerReplay(() => {
+    endedSent = false
+    switchingToVideo = false
+    if (playerStore.playerType !== 'audio') return
+    if (settingsStore.settings.mvMode && settingsStore.settings.mvAudioSource === 'mv' && playerStore.currentSong?.mvUrl) return
+    if (!audioEl.value) return
+    try { audioEl.value.currentTime = 0 } catch {}
+    audioEl.value.play().catch(() => {})
+    fadeIn(audioEl.value)
+    playerStore.playing = true
+  }))
 })
 
 onUnmounted(() => {

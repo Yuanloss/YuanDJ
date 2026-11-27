@@ -55,6 +55,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('player:seek', handler)
     return () => ipcRenderer.removeListener('player:seek', handler)
   },
+  onPlayerReplay: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('player:replay', handler)
+    return () => ipcRenderer.removeListener('player:replay', handler)
+  },
   playerEnded: () => {
     ipcRenderer.send('player:ended')
   },

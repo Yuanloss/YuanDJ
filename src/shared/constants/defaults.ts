@@ -2,9 +2,9 @@ import type { AppSettings } from '../../shared/types/settings'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   roomId: 114514, // 房间ID 
-  userCooldown: 3, // 用户冷却时间（秒）
-  maxQueueSize: 25, // 最大队列
-  songCooldown: 799, // 点歌冷却时间（秒）
+  userCooldown: 1, // 用户冷却时间（秒）
+  maxQueueSize: 50, // 最大队列
+  songCooldown: 10, // 点歌冷却时间（秒）
   theme: 'dark', // 明暗主题
   accentColor: '#00b5e5', // 主题色
   alwaysOnTop: false, // 是否总在顶部
@@ -17,8 +17,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   danmakuWindowBgColor: 'rgba(0,0,0,0.3)', // 弹幕窗口背景色
   danmakuWindowOpacity: 90, // 弹幕窗口透明度 (5-100)
   volume: 40, // 默认音量
-  neteasePlaylistId: '8512248857', // 默认wyy歌单
-  bilibiliFavUrl: 'https://space.bilibili.com/62898492/lists/4641985?type=season', // 默认合集
+  neteasePlaylistId: '8911976595', // 默认wyy歌单
+  bilibiliFavUrl: 'https://space.bilibili.com/42535538/lists/8364153?type=season', // 默认合集
   lastIdleSource: 'netease', // 上次空闲来源
   idleQueueSize: 3, // 默认空闲队列大小
   splitterLeft: 215, // 分隔线左侧宽度
@@ -27,7 +27,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showLyricTranslation: true, // 显示歌词翻译
   splitLyricTranslation: true, // 翻译拆分成多行
   lyricDelay: 100, // 歌词延迟（毫秒）
-  lyricFontSize: 16, // 歌词大小
+  lyricFontSize: 24, // 歌词大小
   lyricLineSpacing: 10, // 歌词行间距
   idleLyricText: '没动就是在吃雪糕喵！', // 空闲歌词文本
   liveParentAreaIdx: 0, // 直播父区域索引
@@ -220,6 +220,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // 播放器
   mvMode: false, // 默认关闭MV模式
   mvAudioSource: 'mv', // 默认使用MV自带音频（更稳定，避免音视频不同步）
+  playRepeatMode: 'off', // 默认不循环
+  playerTransparent: false, // 默认播放时播放区背景透明
   // 歌词背景
   lyricBgEnabled: false, // 默认关闭歌词背景
   lyricBgSource: 'local', // 默认使用本地图片
@@ -229,19 +231,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lyricBgBlur: 0, // 默认无模糊
   lyricBgOpacity: 100, // 默认100%不透明
   // 歌词样式
-  lyricColor: '', // 默认空=跟随主题色
+  lyricColor: '#ffffff', // 默认白色（深色主题下最清晰）
   lyricStrokeColor: 'rgba(0,0,0,0.8)', // 默认黑色描边
-  lyricStrokeWidth: 0, // 默认无描边
-  lyricStrokeBlur: 0, // 默认无描边模糊
-  lyricFontWeight: 'normal', // 默认正常字重
+  lyricStrokeWidth: 2, // 默认 2px 黑色描边，压在任何背景上都看得清
+  lyricStrokeBlur: 2, // 描边柔化，字更立体
+  lyricFontWeight: 'bold', // 默认加粗
   // 翻译样式
-  lyricTransColor: '', // 默认空=跟随主题色
-  lyricTransFontSize: 14, // 默认14px
+  lyricTransColor: 'rgba(255,255,255,0.82)', // 翻译默认半透明白
+  lyricTransFontSize: 18, // 翻译 18px
   lyricTransStrokeColor: 'rgba(0,0,0,0.8)', // 默认黑色描边
-  lyricTransStrokeWidth: 0, // 默认无描边
+  lyricTransStrokeWidth: 1, // 翻译 1px 描边
   lyricTransStrokeBlur: 0, // 默认无描边模糊
   lyricTransFontWeight: 'normal', // 默认正常字重
-  lyricInactiveOpacity: 50, // 默认非焦点歌词透明度50%
+  lyricInactiveOpacity: 45, // 非焦点歌词透明度（越低越突出当前行）
+  lyricStyleMigrated: false, // 一次性迁移标记：首次启动时套用新的高可读歌词默认值
+requestRulesMigrated: false, // 一次性迁移标记：把点歌规则改成 1 秒/10 秒/队列 50
   // 心率监测
   lastHeartRateDevice: '', // 上次连接的蓝牙心率设备ID（MAC）
   lastHeartRateDeviceName: '', // 上次连接的蓝牙心率设备名

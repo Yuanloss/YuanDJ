@@ -69,6 +69,8 @@ export interface AppSettings {
   // 播放器
   mvMode: boolean // 是否启用MV模式（用视频替换歌词画面）
   mvAudioSource: 'mv' | 'original' // MV 模式下音频来源：'mv'=使用MV自带音频（默认，更稳定）, 'original'=原始高音质音频
+  playRepeatMode: 'off' | 'one' | 'all' // 播放循环：off=不循环, one=单曲循环, all=歌单/列表循环
+  playerTransparent: boolean // 播放时右侧歌词/视频区域背景透明（透出桌面）
   // 歌词背景
   lyricBgEnabled: boolean // 是否启用歌词背景图
   lyricBgSource: 'local' | 'cover' // 背景图来源：本地图片 / 当前封面
@@ -91,6 +93,8 @@ export interface AppSettings {
   lyricTransStrokeBlur: number // 翻译描边模糊
   lyricTransFontWeight: string // 翻译字重
   lyricInactiveOpacity: number // 非焦点歌词透明度 (5-100)
+  lyricStyleMigrated: boolean // 是否已把歌词样式迁移到高可读默认值（一次性）
+requestRulesMigrated: boolean // 是否已把点歌规则迁移到 1s/10s/队列 50（一次性）
   // 心率监测
   lastHeartRateDevice: string // 上次连接的蓝牙心率设备ID（MAC）
   lastHeartRateDeviceName: string // 上次连接的蓝牙心率设备名

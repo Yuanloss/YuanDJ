@@ -2,7 +2,7 @@
 
 import http from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, spawnSync, ChildProcess } from 'child_process'
 import { join, extname } from 'path'
 import { app } from 'electron'
 import { existsSync, readFileSync } from 'fs'
@@ -347,10 +347,7 @@ export async function startObsServer(): Promise<number> {
 
 export function stopObsServer(): void {
   // 心率监测子进程：退出时强制 kill，避免 PowerShell 进程残留
-  if (hrProcess) {
-    try { hrProcess.kill() } catch {}
-    hrProcess = null
-  }
+  killHeartRateProcess()
   hrClients.clear()
   hrState.mode = 'idle'
   hrState.connected = false
@@ -401,6 +398,37 @@ const hrState: HrState = {
 }
 
 let hrProcess: ChildProcess | null = null
+// 正在重启监测进程时，旧进程的 close 不应被当成「断开」广播出去
+let hrRestarting = false
+
+/**
+ * 结束心率监测进程，并连同它启动的 heart-rate.exe 一起杀掉。
+ * 只 kill powershell.exe 会留下孤儿 exe，它一直占着蓝牙链路，
+ * 下次连接就会一直 AccessDenied（设备被占用）。
+ *
+ * 用 spawnSync 同步执行：退出流程（will-quit / exit）里异步 taskkill 来不及跑完，
+ * 进程就随 Electron 一起没了，残留的 heart-rate.exe 会一直占着蓝牙。
+ */
+function killHeartRateProcess() {
+  const pid = hrProcess ? hrProcess.pid : undefined
+  hrProcess = null
+  try {
+    if (pid) spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', timeout: 3000 })
+  } catch {}
+  try {
+    spawnSync('taskkill', ['/im', 'heart-rate.exe', '/F'], { stdio: 'ignore', timeout: 3000 })
+  } catch {}
+}
+
+/** 启动时清理上次异常退出（崩溃/被强杀）残留的心率进程 */
+export function killStaleHeartRateProcesses(): void {
+  try {
+    spawnSync('taskkill', ['/im', 'heart-rate.exe', '/F'], { stdio: 'ignore', timeout: 3000 })
+  } catch {}
+  try {
+    spawnSync('taskkill', ['/im', 'heart-rate.exe.bak', '/F'], { stdio: 'ignore', timeout: 3000 })
+  } catch {}
+}
 // 多客户端订阅：设置页 + OBS 捕获页可同时订阅心率消息
 const hrClients = new Set<WebSocket>()
 
@@ -511,10 +539,7 @@ function handleHeartRateScan(ws: WebSocket) {
   hrState.mode = 'scanning'
 
   // 若已有进程在跑（扫描或监测），先 kill
-  if (hrProcess) {
-    try { hrProcess.kill() } catch {}
-    hrProcess = null
-  }
+  killHeartRateProcess()
 
   let scanCompleteSent = false
   try {
@@ -565,7 +590,7 @@ function handleHeartRateConnect(ws: WebSocket, deviceId: string) {
 
   // 若已连接同一设备且有进程在跑，仅推送当前状态，无需重启 monitor
   if (hrProcess && hrState.mode === 'monitoring' && hrState.deviceId === deviceId) {
-    sendToClient(ws, { type: 'status', message: 'reused existing monitor' })
+    sendToClient(ws, { type: 'status', message: '已在监测该设备，正在读取实时心率…' })
     if (hrState.connected) {
       sendToClient(ws, { type: 'connected', deviceId, name: hrState.deviceName })
     }
@@ -577,8 +602,8 @@ function handleHeartRateConnect(ws: WebSocket, deviceId: string) {
 
   // 否则启动新的 monitor
   if (hrProcess) {
-    try { hrProcess.kill() } catch {}
-    hrProcess = null
+    hrRestarting = true
+    killHeartRateProcess()
   }
 
   hrState.deviceId = deviceId
@@ -587,6 +612,7 @@ function handleHeartRateConnect(ws: WebSocket, deviceId: string) {
   hrState.mode = 'monitoring'
   // 持久化设备 ID
   store.set('app_lastHeartRateDevice', JSON.stringify(deviceId))
+  dispatchHrMessage({ type: 'status', message: '正在启动心率监测…（首次运行需要编译约 8 秒）' })
 
   try {
     hrProcess = spawn('powershell.exe', [
@@ -608,6 +634,11 @@ function handleHeartRateConnect(ws: WebSocket, deviceId: string) {
     })
 
     hrProcess.on('close', () => {
+      // 重启时旧进程的 close 属于预期的，不广播「已断开」
+      if (hrRestarting) {
+        hrRestarting = false
+        return
+      }
       dispatchHrMessage({ type: 'disconnected' })
       hrProcess = null
       hrState.mode = 'idle'
@@ -651,10 +682,7 @@ function handleHeartRateInit(ws: WebSocket, requestedDeviceId?: string) {
 
 // 前端主动断开连接（停止 monitor 进程）
 function handleHeartRateDisconnect(ws: WebSocket) {
-  if (hrProcess) {
-    try { hrProcess.kill() } catch {}
-    hrProcess = null
-  }
+  killHeartRateProcess()
   hrState.mode = 'idle'
   hrState.connected = false
   hrState.lastHR = 0
@@ -705,10 +733,7 @@ export function autoConnectHeartRate(): Promise<boolean> {
 
     // 启动 monitor（通过 init 逻辑）
     // 先 kill 旧进程
-    if (hrProcess) {
-      try { hrProcess.kill() } catch {}
-      hrProcess = null
-    }
+    killHeartRateProcess()
     hrState.deviceId = deviceId
     hrState.connected = false
     hrState.lastHR = 0

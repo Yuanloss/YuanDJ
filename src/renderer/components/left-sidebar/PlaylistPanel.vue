@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, nextTick, watch, computed, inject } from 'vue'
 import { usePlaylistStore } from '../../stores/playlist.store'
 import { usePlayerStore } from '../../stores/player.store'
 import { useSettingsStore } from '../../stores/settings.store'
@@ -8,6 +8,7 @@ import type { SongItem } from '@shared/types/song'
 const playlistStore = usePlaylistStore()
 const playerStore = usePlayerStore()
 const settingsStore = useSettingsStore()
+const showToast = inject<(msg: string, type?: 'info' | 'success' | 'error' | 'warning') => void>('showToast', () => {})
 
 const searchText = ref('')
 const searching = ref(false)
@@ -179,8 +180,12 @@ async function manualSearch() {
     const song = await window.electronAPI.searchSong(keyword)
     if (song) {
       song.requesterName = '控制台'
-      await window.electronAPI.playlistInsertTop(song)
-      searchText.value = ''
+      const res = await window.electronAPI.playlistInsertTop(song)
+      if (res && (res as any).success === false) {
+        showToast('队列里已有这首歌，播完后可再点', 'info')
+      } else {
+        searchText.value = ''
+      }
     }
   } catch {} finally { searching.value = false }
 }
@@ -263,7 +268,7 @@ async function removeSong(song: SongItem) {
       <input
         v-model="searchText"
         class="search-input"
-        placeholder="歌名 / BV号 / 歌曲ID"
+        placeholder="歌名 / BV号 [p2] / 歌曲ID"
         @keyup.enter="manualSearch"
       />
       <button class="search-btn" @click="manualSearch" :disabled="searching">

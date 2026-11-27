@@ -16,7 +16,8 @@ import type { SongItem } from '../../../shared/types/song'
 const NETEASE_PATTERN = /^[点點]歌\s+(.+?)(?:\s+|\s*[-—–]\s*)(.+?)$/      // "点歌/點歌 歌名 歌手"
 const NETEASE_PATTERN_SIMPLE = /^[点點]歌\s+(.{2,}?)$/                    // "点歌/點歌 歌名"（仅歌名，至少2字符）
 const NETEASE_ID_PATTERN = /^[点點]歌\s+(\d{4,})$/                        // "点歌/點歌 123456"（歌曲ID）
-const BILI_PATTERN = /^[点點]歌\s+(BV[\w]{10})/i                          // "点歌/點歌 BV..."
+// "点歌 BV1xxxxxxxxx" 或 "点歌 BV1xxxxxxxxx p3"（第3个分P）
+const BILI_PATTERN = /^[点點]歌\s+(BV[\w]{10})(?:\s*[pP]\s*(\d{1,3}))?/i
 
 interface HostInfo { host: string; wss_port: number; ws_port: number }
 
@@ -40,6 +41,8 @@ export class LiveWS {
 
   onStatusChange: ((status: DanmakuStatus) => void) | null = null
   onSongRequest: ((req: { song: SongItem; requesterName: string; requesterUid: number }) => void) | null = null
+  /** 把点歌被拒/降级的原因写到界面日志，避免观众点了没反应 */
+  onLog: ((msg: string) => void) | null = null
   onViewerJoin: ((viewer: { uid: number; uname: string; avatarUrl: string }) => void) | null = null
   onViewerListSync: ((viewers: Array<{ uid: number; uname: string; avatarUrl: string }>) => void) | null = null
 
@@ -388,7 +391,7 @@ export class LiveWS {
     // 纯表情弹幕（无文本）不处理点歌
     if (!text) return
 
-    if (uname === 'BxNcm DJ') return // 忽略自己的消息
+    if (uname === 'YuanDJ') return // 忽略自己的消息
 
     const parsed = this.parseCommand(text)
     if (!parsed) return
@@ -408,15 +411,21 @@ export class LiveWS {
 
     // 1) 用户冷却检查
     const lastUserTime = this.lastRequestMap.get(uid) || 0
-    if (Date.now() - lastUserTime < userCooldownS * 1000) return
+    if (Date.now() - lastUserTime < userCooldownS * 1000) {
+      this.onLog?.(`${uname} 点歌太快：同一个人需要间隔 ${userCooldownS} 秒`)
+      return
+    }
 
     // 立即设置用户冷却（修复竞态窗口：防止搜索期间的重复点歌绕过冷却）
     this.lastRequestMap.set(uid, Date.now())
 
     // 2) 歌曲冷却预检（使用 keyword+artist 哈希作为近似 key，避免无意义的搜索 API 调用）
-    const songKey = `${parsed.type}:${parsed.keyword}:${parsed.artist || ''}`
+    // 分P要参与冷却键，否则同一 BV 点过 p2 后，p3 会被当成同一首歌拦掉
+    const songKey = `${parsed.type}:${parsed.keyword}:${parsed.part || ''}:${parsed.artist || ''}`
     const lastSongPrecheck = this.lastSongMap.get(songKey) || 0
     if (Date.now() - lastSongPrecheck < cooldown * 1000) {
+      const left = Math.ceil((cooldown * 1000 - (Date.now() - lastSongPrecheck)) / 1000)
+      this.onLog?.(`${uname} 点的 ${parsed.keyword}${parsed.part ? ` p${parsed.part}` : ''} 还在冷却，约 ${left} 秒后可再点`)
       // 预检失败 → 撤回用户冷却（不消耗用户点歌机会）
       this.lastRequestMap.delete(uid)
       return
@@ -431,6 +440,8 @@ export class LiveWS {
       // 3) 精确歌曲冷却检查（使用搜索结果中的真实 song.id）
       const lastExactTime = this.lastExactSongMap.get(song.id) || 0
       if (Date.now() - lastExactTime < cooldown * 1000) {
+        const left = Math.ceil((cooldown * 1000 - (Date.now() - lastExactTime)) / 1000)
+        this.onLog?.(`《${song.title}》还在冷却，约 ${left} 秒后可再点`)
         // 精确冷却未过 → 撤回用户冷却
         this.lastRequestMap.delete(uid)
         return
@@ -451,10 +462,17 @@ export class LiveWS {
   }
 
   parseCommand(text: string): ParsedSongRequest | null {
-    // B站: "点歌 BVxxxxxxx"
+    // B站: "点歌 BVxxxxxxx" / "点歌 BVxxxxxxx p3"
     const mBili = text.match(BILI_PATTERN)
     if (mBili) {
-      return { type: 'bilibili', keyword: mBili[1] }
+      const part = mBili[2] ? parseInt(mBili[2], 10) : undefined
+      // 只规范 BV 前缀，其余字符大小写敏感不要动
+      const bvid = mBili[1].replace(/^bv/i, 'BV')
+      return {
+        type: 'bilibili',
+        keyword: bvid,
+        ...(part && part > 0 ? { part } : {}),
+      }
     }
 
     // 网易云歌曲ID: "点歌 1234567"
@@ -497,6 +515,15 @@ export class LiveWS {
         : parsed.keyword
       return neteaseApi.searchByKeyword(keyword)
     } else if (parsed.type === 'bilibili') {
+      // 带分P：只点该分P；失败时给出提示（分P超出范围）
+      if (parsed.part && parsed.part > 1) {
+        const song = await bilibiliAuth.getVideoPart(parsed.keyword, parsed.part)
+        if (song) return song
+        console.warn(`[LiveWS] ${parsed.keyword} 没有第 ${parsed.part} 个分P，回退到第一P`)
+        this.onLog?.(`${parsed.keyword} 没有第 ${parsed.part} 个分P，已按第一P播放`)
+        return bilibiliAuth.getVideoInfo(parsed.keyword)
+      }
+      // p1 或未指定：原来的一整条视频（第一P）
       return bilibiliAuth.getVideoInfo(parsed.keyword)
     }
     return null

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useSettingsStore } from '../../stores/settings.store'
+import HeartRateChip from './HeartRateChip.vue'
 
 const settingsStore = useSettingsStore()
 const alwaysOnTop = ref(false)
@@ -30,11 +31,12 @@ async function closeWindow() { window.electronAPI.closeWindow() }
 <template>
   <header class="titlebar">
     <span class="tb-title">
-      <span class="tb-logo">BxNcm DJ</span>
+      <span class="tb-logo">YuanDJ</span>
       <span class="tb-version">v{{ appVersion }}</span>
     </span>
     <div class="tb-drag-spacer"></div>
     <div class="tb-actions">
+      <HeartRateChip />
       <button
         class="tb-btn"
         :class="{ active: alwaysOnTop }"

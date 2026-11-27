@@ -1,12 +1,12 @@
 {
-  "name": "BxNcm-dj",
+  "name": "yuandj",
   "version": "1.2.2",
-  "description": "BxNcm DJ - 网易云+B站直播点歌助手",
-  "author": "Taumata",
+  "description": "YuanDJ - B站/网易云直播点歌助手（基于 BxNcm DJ 修改）",
+  "author": "Yuanloss",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Taumata-wwq/BxNcm-DJ"
+    "url": "https://github.com/Yuanloss/YuanDJ"
   },
   "main": "dist-electron/main.js",
   "scripts": {

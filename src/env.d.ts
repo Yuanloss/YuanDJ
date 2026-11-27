@@ -32,13 +32,14 @@ interface ElectronAPI {
   onPlayerPause: (cb: () => void) => () => void
   onPlayerResume: (cb: () => void) => () => void
   onPlayerSeek: (cb: (time: number) => void) => () => void
+  onPlayerReplay: (cb: () => void) => () => void
   playerEnded: () => void
   onLyricUpdate: (cb: (lyric: any[]) => void) => () => void
   getPlaylist: () => Promise<any[]>
   playlistRemove: (songId: string) => Promise<void>
   playlistClear: () => Promise<void>
   playlistAddSong: (song: any) => Promise<void>
-  playlistInsertTop: (song: any) => Promise<void>
+  playlistInsertTop: (song: any) => Promise<{ success: boolean }>
   onPlaylistUpdated: (cb: (list: any[]) => void) => void
   getIdlePlaylistInfo: () => Promise<{ name: string; owner: string; source: string } | null>
   getIdleQueueStartIndex: () => Promise<number>

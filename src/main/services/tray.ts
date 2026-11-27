@@ -23,7 +23,7 @@ export function createTray(window: BrowserWindow, onQuit: () => void) {
   const resizedImage = image.resize({ width: 16, height: 16 })
 
   tray = new Tray(resizedImage)
-  tray.setToolTip('BxNcm DJ')
+  tray.setToolTip('YuanDJ')
 
   tray.on('click', () => {
     closeMenuWindow()

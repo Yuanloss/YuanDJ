@@ -2,12 +2,40 @@
   <div class="progress-bar">
     <!-- 紧凑播放控制按钮 -->
     <div class="play-controls">
+      <button class="mini-btn" @click="playerStore.prev()" title="上一首">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 6v12l-8.5-6L18 6zM8 6h2v12H8V6z"/></svg>
+      </button>
       <button class="mini-btn play-btn" @click="togglePlay" :title="playerStore.playing ? '暂停' : '播放'">
         <svg v-if="playerStore.playing" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
         <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </button>
       <button class="mini-btn" @click="playerStore.next()" title="下一首">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg>
+      </button>
+    </div>
+    <div class="loop-controls">
+      <button
+        class="mini-btn loop-btn"
+        :class="{ active: repeatMode === 'one' }"
+        @click="toggleRepeat('one')"
+        :title="repeatMode === 'one' ? '取消单曲循环' : '单曲循环'"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+          <path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" />
+          <text x="12" y="16" font-size="8" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">1</text>
+        </svg>
+      </button>
+      <button
+        class="mini-btn loop-btn"
+        :class="{ active: repeatMode === 'all' }"
+        @click="toggleRepeat('all')"
+        :title="repeatMode === 'all' ? '取消列表循环' : '列表循环（歌单/视频列表）'"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+          <path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" />
+        </svg>
       </button>
     </div>
     <span class="time">{{ playerStore.currentTimeStr }}</span>
@@ -43,10 +71,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { usePlayerStore } from '../../stores/player.store'
+import { useSettingsStore } from '../../stores/settings.store'
 
 const playerStore = usePlayerStore()
+const settingsStore = useSettingsStore()
+const repeatMode = computed(() => settingsStore.settings.playRepeatMode)
+
+/** 单曲循环 / 列表循环：点同一个按钮即取消 */
+function toggleRepeat(mode: 'one' | 'all') {
+  settingsStore.settings.playRepeatMode = repeatMode.value === mode ? 'off' : mode
+}
 const trackRef = ref<HTMLElement | null>(null)
 const volTrackRef = ref<HTMLElement | null>(null)
 const lastVolume = ref<number>(0)
@@ -144,6 +180,13 @@ onUnmounted(() => {
 .mini-btn:hover { background: var(--btn-hover-bg); }
 .mini-btn.play-btn { background: var(--accent); color: var(--btn-primary-text); }
 .mini-btn.play-btn:hover { opacity: 0.85; }
+.loop-controls { display: flex; gap: 2px; flex-shrink: 0; }
+.loop-btn { color: var(--text-muted); }
+.loop-btn.active {
+  color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 .time { font-size: 11px; color: var(--text-muted); width: 36px; text-align: center; font-family: 'Consolas', monospace; flex-shrink: 0; }
 .progress-track {
   flex: 1; height: 4px; background: var(--bg-tertiary);

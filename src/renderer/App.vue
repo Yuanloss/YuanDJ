@@ -1,5 +1,5 @@
 <template>
-  <div class="app-root">
+  <div class="app-root" :class="{ 'player-transparent': seeThroughPlayer }">
     <ToastNotification ref="toastRef" />
     <!-- 加载覆盖层：loading / loading-data 阶段显示，ready 阶段带淡出动画 -->
     <div
@@ -8,7 +8,7 @@
       :class="{ 'overlay-fading': fadingOut }"
     >
       <div class="init-container">
-        <div class="app-title">BxNcm DJ</div>
+        <div class="app-title">YuanDJ</div>
         <div class="spinner"></div>
         <div class="task-text">{{ currentTask }}</div>
         <div class="progress-bar">
@@ -41,6 +41,7 @@ import { ref, provide, computed, watch, onUnmounted, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from './stores/settings.store'
 import { useAuthStore } from './stores/auth.store'
+import { usePlayerStore } from './stores/player.store'
 import CloseToTrayDialog from './components/settings/CloseToTrayDialog.vue'
 import UpdateNotificationDialog from './components/settings/UpdateNotificationDialog.vue'
 import ToastNotification from './components/settings/ToastNotification.vue'
@@ -48,6 +49,12 @@ import ToastNotification from './components/settings/ToastNotification.vue'
 const router = useRouter()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
+const playerStore = usePlayerStore()
+
+// 播放区透明：最外层 .app-root 必须一起透明，否则它那层不透明底色会把窗口透出的桌面全挡住
+const seeThroughPlayer = computed(() =>
+  !!settingsStore.settings.playerTransparent && !!playerStore.currentSong
+)
 
 // ── 关闭前响应：保存设置后通知主进程 ──
 // 关闭到托盘对话框
@@ -78,8 +85,10 @@ onMounted(() => {
     if (s.percent !== undefined) updateDownloadProgress.value = s.percent
     if (s.error) updateMessage.value = s.error
     if (s.message) updateMessage.value = s.message
-    // 自动检查发现新版本或下载完成时弹出通知
-    if (s.status === 'available' || s.status === 'downloaded' || s.status === 'downloading' || s.status === 'error') {
+    // 只在「发现新版本 / 下载中 / 已下载」时自动弹出通知。
+    // 检查失败（例如 GitHub 访问不了）不再弹窗：它的全屏遮罩会把界面压暗，
+    // 让播放区看起来"没有透明"，而且每次启动都弹一次很烦。
+    if (s.status === 'available' || s.status === 'downloaded' || s.status === 'downloading') {
       showUpdateDialog.value = true
     }
   })
@@ -264,7 +273,11 @@ initApp()
 /* 根容器：确保过渡期间无白屏 */
 .app-root {
   background: var(--bg-primary);
-  min-height: 100vh;
+  min-height: 100vh;}
+
+/* 播放区透明：根容器让出底色，播放区才能透出桌面（其余区域各自有不透明底色） */
+.app-root.player-transparent {
+  background: transparent;
 }
 
 .init-overlay {

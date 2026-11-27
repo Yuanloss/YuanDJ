@@ -1,5 +1,5 @@
 <template>
-  <div class="main-layout">
+  <div class="main-layout" :class="{ 'focus-mode': playerStore.focusMode, 'player-transparent': transparentNow }">
     <TitleBar />
     <div class="main-body">
       <div class="left-sidebar" :style="{ width: leftWidth + 'px' }">
@@ -19,16 +19,21 @@
           class="splitter splitter-v"
           @mousedown="startDragSplitter($event, 'v')"
         ></div>
-        <div class="player-lower">
-          <template v-if="playerStore.currentSong && playerStore.playerType === 'audio'">
-            <LyricsDisplay v-show="!hasMv" />
-            <VideoPlayer v-show="hasMv" :mv-mode="true" />
-          </template>
-          <VideoPlayer
-            v-if="playerStore.currentSong && playerStore.playerType === 'video'"
-          />
+        <div class="player-stage">
+          <PlayerToolbar />
+          <div class="player-lower">
+            <template v-if="playerStore.currentSong && playerStore.playerType === 'audio'">
+              <LyricsDisplay v-show="!hasMv" />
+              <VideoPlayer v-show="hasMv" :mv-mode="true" />
+            </template>
+            <VideoPlayer
+              v-if="playerStore.currentSong && playerStore.playerType === 'video'"
+            />
+          </div>
         </div>
-        <ProgressBar />
+        <div class="controls-bar">
+          <ProgressBar />
+        </div>
       </div>
     </div>
     <SettingsModal v-if="authStore.showSettings" @close="authStore.closeSettings" />
@@ -52,6 +57,7 @@ import LyricsDisplay from '../components/player/LyricsDisplay.vue'
 import VideoPlayer from '../components/player/VideoPlayer.vue'
 import AudioPlayer from '../components/player/AudioPlayer.vue'
 import ProgressBar from '../components/player/ProgressBar.vue'
+import PlayerToolbar from '../components/player/PlayerToolbar.vue'
 import SettingsModal from '../components/settings/SettingsModal.vue'
 import defaultDanmakuCss from '../assets/styles/danmaku.css?raw'
 
@@ -68,6 +74,11 @@ const hasMv = computed(() => {
   if (playerStore.playerType !== 'audio') return false
   return !!playerStore.currentSong?.mvUrl
 })
+
+// 播放时默认让右侧播放区背景透明（可在 设置 → 播放器 中关闭）
+const transparentNow = computed(() =>
+  !!settingsStore.settings.playerTransparent && !!playerStore.currentSong
+)
 
 /** 解析 B站 URL → 复合 ID */
 function parseBiliFavMediaId(url: string): string {
@@ -477,7 +488,30 @@ onUnmounted(() => {
 .splitter:hover { background: var(--accent); }
 .splitter-h { width: 2px; cursor: col-resize; }
 .splitter-v { height: 2px; cursor: row-resize; }
-.right-content { flex: 1; display: flex; flex-direction: column; padding: 12px; overflow: hidden; }
-.player-upper { display: flex; gap: 12px; flex-shrink: 0; }
+.right-content { flex: 1; display: flex; flex-direction: column; padding: 12px; overflow: hidden; background: var(--bg-primary); }
+.player-upper { display: flex; gap: 12px; flex-shrink: 0; background: var(--bg-primary); }
+.player-stage { position: relative; flex: 1; display: flex; min-height: 0; }
 .player-lower { flex: 1; overflow: hidden; border: 1px solid var(--border); background: var(--bg-primary); }
+.controls-bar { flex-shrink: 0; background: var(--bg-primary); }
+
+/* ===== 精简模式：只保留视频/歌词 + 底部控制栏 ===== */
+.main-layout.focus-mode .left-sidebar,
+.main-layout.focus-mode .splitter-h,
+.main-layout.focus-mode .player-upper,
+.main-layout.focus-mode .splitter-v { display: none; }
+.main-layout.focus-mode .right-content { padding: 8px; }
+
+/* ===== 播放区背景透明：只有歌词/视频那一块透出桌面，四周留边保持不透明 ===== */
+.main-layout.player-transparent { background: transparent; }
+.main-layout.player-transparent .right-content {
+  background: transparent;
+  padding: 0;
+  /* 用不透明边框代替原来的 padding，这样左/上/右/下留边都不会透 */
+  border: 12px solid var(--bg-primary);
+}
+.main-layout.focus-mode.player-transparent .right-content { border-width: 8px; }
+.main-layout.player-transparent .player-lower {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+}
 </style>

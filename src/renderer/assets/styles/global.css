@@ -17,7 +17,8 @@ html, body, #app {
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-primary);
-  background: var(--bg-primary);
+  /* 透明窗口：底色交给各页面自己铺，播放区才能单独透明 */
+  background: transparent;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   -webkit-user-select: none;
@@ -99,3 +100,99 @@ button { font-family: inherit; font-size: 13px; }
 
 /* 允许文本选择 */
 input, textarea, .allow-select { user-select: text; -webkit-user-select: text; }
+
+/* 播放区背景透明时，歌词面板/视频底板也一起透出桌面 */
+.main-layout.player-transparent .lyrics-display { background: transparent; }
+.main-layout.player-transparent .video-player { background: transparent; }
+
+/* ========================================
+   UI 打磨层（圆角 / 阴影 / 过渡 / 滚动条）
+   用 #app 提升优先级，覆盖各组件 scoped 样式
+   ======================================== */
+:root {
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* 窗口整体圆角（窗口本身是透明的，圆角外会透出桌面） */
+#app .app-root {
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ---- 按钮 ---- */
+#app button {
+  border-radius: var(--r-sm);
+  transition: background-color 0.15s ease, color 0.15s ease,
+              border-color 0.15s ease, box-shadow 0.15s ease, transform 0.06s ease;
+}
+#app button:not(:disabled):active { transform: translateY(1px); }
+#app button:disabled { opacity: 0.5; cursor: not-allowed; }
+#app .mini-btn { border-radius: var(--r-xs); }
+#app .tb-btn { border-radius: var(--r-sm); margin: 0 1px; }
+
+/* ---- 输入框 / 下拉 ---- */
+#app input:not([type="checkbox"]):not([type="range"]),
+#app textarea,
+#app select {
+  border-radius: var(--r-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+#app input:not([type="checkbox"]):not([type="range"]):focus,
+#app textarea:focus,
+#app select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+/* ---- 列表 / 标签 ---- */
+#app .song-item { border-radius: 8px; margin: 2px 0; transition: background-color 0.15s ease; }
+#app .song-item:hover { background: var(--bg-tertiary); }
+#app .tab-btn { border-radius: var(--r-sm); }
+#app .toggle-btn { border-radius: var(--r-xs); }
+
+/* ---- 封面 / 播放区 ---- */
+#app .cover-display { border-radius: var(--r-md); overflow: hidden; box-shadow: var(--shadow-2); }
+#app .cover-img { border-radius: var(--r-md); }
+#app .player-lower { border-radius: var(--r-md); }
+
+/* ---- 进度条 / 音量条 ---- */
+#app .progress-track,
+#app .volume-track { height: 6px; border-radius: 999px; }
+#app .progress-fill,
+#app .volume-fill { border-radius: 999px; }
+#app .progress-thumb,
+#app .volume-thumb {
+  width: 12px; height: 12px; top: -3px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-1);
+}
+
+/* ---- 设置弹窗 ---- */
+#app .modal-content,
+#app .settings-modal {
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+}
+#app .modal-overlay { backdrop-filter: blur(2px); }
+#app .nav-item { border-radius: var(--r-sm); transition: background-color 0.15s ease, color 0.15s ease; }
+
+/* ---- 滚动条 ---- */
+#app ::-webkit-scrollbar { width: 8px; height: 8px; }
+#app ::-webkit-scrollbar-track { background: transparent; }
+#app ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+#app ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+  background-clip: content-box;
+}

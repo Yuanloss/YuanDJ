@@ -10,6 +10,18 @@ import type { SongItem } from '../../shared/types/song'
 let processingEnded = false
 let processingNext = false
 
+/** 读取循环模式（持久化键 app_playRepeatMode，由渲染进程写入） */
+function getRepeatMode(): 'off' | 'one' | 'all' {
+  try {
+    const raw = store.get('app_playRepeatMode')
+    if (!raw) return 'off'
+    const v = JSON.parse(raw)
+    return v === 'one' || v === 'all' ? v : 'off'
+  } catch {
+    return 'off'
+  }
+}
+
 /**
  * 为歌曲获取播放 URL（不发送事件）
  */
@@ -386,6 +398,8 @@ export function registerPlayerIpc(mainWindow: BrowserWindow) {
     try {
       const prevSong = playlistManager.getCurrentSong()
       let song = playlistManager.next()
+      // 列表循环：最后一首之后回到开头
+      if (!song && getRepeatMode() === 'all') song = playlistManager.rewindToStart()
       if (song) {
         let ok = await sendPlayEvent(mainWindow, song)
         // B站视频：若首次失败，额外重试同一首歌再给一次机会
@@ -420,7 +434,11 @@ export function registerPlayerIpc(mainWindow: BrowserWindow) {
     const song = playlistManager.previous()
     if (song) {
       await sendPlayEvent(mainWindow, song)
+      mainWindow.webContents.send('song:playlist-updated', playlistManager.getQueue())
+      mainWindow.webContents.send('log:add', `上一首: ${song.title} - ${song.artist}`)
+      return { success: true }
     }
+    return { success: false }
   })
 
   // 渲染进程通知播放完成
@@ -432,7 +450,19 @@ export function registerPlayerIpc(mainWindow: BrowserWindow) {
     processingEnded = true
     try {
       const prevSong = playlistManager.getCurrentSong()
+      const repeatMode = getRepeatMode()
+
+      // 单曲循环：把当前歌曲拉回开头重放（不重新取 URL，切歌更顺）
+      if (repeatMode === 'one' && prevSong) {
+        // 用专门的重播事件，避免「seek(0) + resume」在媒体已 ended 时被浏览器忽略
+        mainWindow.webContents.send('player:replay')
+        mainWindow.webContents.send('log:add', `单曲循环: ${prevSong.title} - ${prevSong.artist}`)
+        return
+      }
+
       let song = playlistManager.next()
+      // 列表循环：播完最后一首回到队列开头
+      if (!song && repeatMode === 'all') song = playlistManager.rewindToStart()
       if (song) {
         let ok = await sendPlayEvent(mainWindow, song)
         // B站视频：若首次失败，额外重试同一首歌再给一次机会（不直接 skip）

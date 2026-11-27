@@ -145,11 +145,15 @@ export function registerPlaylistIpc(mainWindow: BrowserWindow) {
   })
 
   ipcMain.handle('playlist:insert-top', (_, song: any) => {
-    playlistManager.insertTop(song)
+    const inserted = playlistManager.insertTop(song)
     notifyQueueUpdate(mainWindow)
-    mainWindow.webContents.send('log:add', `${song.requesterName || '控制台'} 点歌: ${song.title}`)
-    prefetchNextSongs(mainWindow, 3)
-    return { success: true }
+    if (inserted) {
+      mainWindow.webContents.send('log:add', `${song.requesterName || '控制台'} 点歌: ${song.title}`)
+      prefetchNextSongs(mainWindow, 3)
+    } else {
+      mainWindow.webContents.send('log:add', `点歌失败：队列里已有 ${song.title}`)
+    }
+    return { success: inserted }
   })
 
   // 空闲歌单
@@ -234,10 +238,18 @@ export function registerPlaylistIpc(mainWindow: BrowserWindow) {
 
   // 搜索
   ipcMain.handle('search:song', async (_, keyword: string) => {
-    // 判断是BV号还是歌名
-    const bvMatch = keyword.match(/^BV[\w]{10}$/i)
+    // BV号（可带分P）："BV1xxxxxxxxx" 或 "BV1xxxxxxxxx p3"
+    const bvMatch = keyword.match(/^BV[\w]{10}(?:\s*[pP]\s*(\d{1,3}))?$/i)
     if (bvMatch) {
-      return bilibiliAuth.getVideoInfo(bvMatch[0])
+      const bvid = bvMatch[0].slice(0, 12).replace(/^bv/i, 'BV')
+      const part = bvMatch[1] ? parseInt(bvMatch[1], 10) : 0
+      if (part > 1) {
+        const song = await bilibiliAuth.getVideoPart(bvid, part)
+        if (song) return song
+        // 分P不存在：回退第一P，避免点歌没反应
+        return bilibiliAuth.getVideoInfo(bvid)
+      }
+      return bilibiliAuth.getVideoInfo(bvid)
     }
     // 判断是否是纯数字（歌曲ID）
     const idMatch = keyword.match(/^(\d{4,})$/)

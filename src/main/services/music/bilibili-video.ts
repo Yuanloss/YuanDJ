@@ -274,6 +274,57 @@ export const bilibiliAuth = {
   },
 
   /**
+   * 获取指定分P（用于「点歌 BV号 p3」）
+   * @param bvid BV 号
+   * @param partNum 第几个分P（从 1 开始）
+   * @returns 找不到该分P 时返回 null
+   */
+  async getVideoPart(bvid: string, partNum: number): Promise<SongItem | null> {
+    if (!Number.isFinite(partNum) || partNum < 1) return null
+    try {
+      const cookieStr = getBilibiliCookieStr()
+      const res = await fetchWithTimeout(
+        `https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`,
+        {
+          headers: {
+            'User-Agent': UA, 'Referer': REFERER,
+            ...(cookieStr ? { Cookie: cookieStr } : {})
+          }
+        }
+      )
+      const data = await res.json()
+      if (data.code !== 0 || !data.data) return null
+
+      const d = data.data
+      const pages: any[] = d.pages || []
+      if (pages.length === 0) return null
+
+      // 优先按 page 字段匹配，兜底按序号
+      const page = pages.find((p: any) => Number(p.page) === partNum) || pages[partNum - 1]
+      if (!page) return null
+
+      const pageNum = Number(page.page) || partNum
+      const partTitle = page.part || ''
+      const fullTitle = partTitle ? `${d.title} - ${partTitle}` : `${d.title} #${pageNum}`
+
+      const song = await mapVideoToSong({
+        bvid: d.bvid,
+        pic: d.pic || '',
+        title: fullTitle,
+        duration: page.duration || d.duration || 0,
+        owner: { name: d.owner?.name || '' },
+        cid: page.cid || 0,
+      })
+      // 与「整条视频拆分后的分P」保持同样的 id，方便命中音频缓存
+      song.id = `bv_${d.bvid}_p${pageNum}`
+      return song.title ? song : null
+    } catch (e) {
+      console.error('[BiliAuth] getVideoPart 失败:', (e as Error).message)
+      return null
+    }
+  },
+
+  /**
    * 获取B站视频播放URL（最高 1080p30帧）
    */
   async getVideoPlayUrl(bvid: string, cid: number): Promise<{ url: string; duration: number } | null> {

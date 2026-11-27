@@ -6,7 +6,7 @@
         </svg>
       </button>
     <div class="login-header">
-      <h1>BxNcm DJ 
+      <h1>YuanDJ 
         <span class="subtitle">v{{ appVersion }} by Taumata</span>
       </h1>
     </div>

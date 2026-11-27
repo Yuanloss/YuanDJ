@@ -1,5 +1,8 @@
 # NOTICE / 来源与修改说明
 
+本仓库是 **YuanDJ**，为 [BxNcm DJ](https://github.com/Taumata-wwq/BxNcm-DJ)（作者：Taumata）的衍生版本，维护者：**Yuanloss**（https://github.com/Yuanloss/YuanDJ）。
+功能与界面在原版基础上做了较多修改，详见下方「本仓库相对上游的改动」。
+
 ## 上游来源
 
 - 项目：BxNcm DJ（B站/网易云直播点歌助手）

@@ -33,6 +33,8 @@ class PlaylistManager {
   private consumedPoolIds = new Set<string>()
   /** 当前活跃歌单的 ID，耗尽时用于从缓存自动重建 */
   private currentPlaylistId = ''
+  /** 已播放过的歌曲历史（供「上一首」使用，最多保留 30 首） */
+  private prevStack: SongItem[] = []
   onQueueChanged: (() => void) | null = null
 
   // ==================== 动态属性 ====================
@@ -195,7 +197,13 @@ class PlaylistManager {
    * 非空闲歌曲存在期间，空闲歌曲原地不动（不会被提前提升到 display 位置）。
    */
   next(): SongItem | null {
+    // 记录刚播完的歌，供「上一首」
+    const finished = this.getCurrentSong()
     this.removeCurrentSong()
+    if (finished) {
+      this.prevStack.push(finished)
+      if (this.prevStack.length > 30) this.prevStack.shift()
+    }
     this.fillIdleQueue()
 
     if (this.currentIndex < 0 && this.queue.length > 0) {
@@ -282,13 +290,37 @@ class PlaylistManager {
     return song
   }
 
+  /**
+   * 上一首：从「已播放历史」里取回上一首并重新插回队列当前位置。
+   * 旧实现只在非空闲模式里把 index-1，而播完的歌会从队列移除，所以基本拿不到东西。
+   */
   previous(): SongItem | null {
-    if (!this.isIdle && this.queue.length > 0) {
-      this.currentIndex--
-      if (this.currentIndex < 0) this.currentIndex = this.queue.length - 1
-      return this.queue[this.currentIndex]
+    const target = this.prevStack.pop()
+    if (!target) return null
+
+    const cur = this.getCurrentSong()
+    if (cur && cur.id !== target.id) {
+      // 插到当前歌曲之前，当前歌曲顺延
+      this.queue.splice(this.currentIndex, 0, target)
+      this.currentIndex = this.queue.indexOf(target)
+    } else if (!cur) {
+      this.queue.push(target)
+      this.currentIndex = this.queue.length - 1
     }
-    return null
+
+    this.isIdle = this.idleQueue.some(s => s.id === target.id)
+    this.recalcRequestInsertPos()
+    store.setCacheItem(target.id, target)
+    return target
+  }
+
+  /**
+   * 列表循环：回到队列开头再取一首（用于列表循环模式下播完最后一首）
+   */
+  rewindToStart(): SongItem | null {
+    if (this.queue.length === 0) return null
+    this.currentIndex = -1
+    return this.next()
   }
 
   // ==================== 空闲歌单填充 ====================

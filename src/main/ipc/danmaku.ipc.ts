@@ -48,11 +48,19 @@ export function registerDanmakuIpc(mainWindow: BrowserWindow) {
         // 广播到弹幕独立窗口，使其按钮状态同步
         sendStatusToDanmakuWindow(status)
       }
+      ws.onLog = (msg) => {
+        if (!mainWindow.isDestroyed()) mainWindow.webContents.send('log:add', msg)
+      }
       ws.onSongRequest = (req) => {
         if (mainWindow.isDestroyed()) return
-        playlistManager.insertTop(req.song)
+        const inserted = playlistManager.insertTop(req.song)
         mainWindow.webContents.send('song:playlist-updated', playlistManager.getQueue())
-        mainWindow.webContents.send('log:add', `${req.requesterName} 点歌: ${req.song.title}`)
+        mainWindow.webContents.send(
+          'log:add',
+          inserted
+            ? `${req.requesterName} 点歌: ${req.song.title}`
+            : `${req.requesterName} 点歌失败：队列里已有该歌曲（播完后可再点）`
+        )
         // 触发预缓存，确保新增歌曲能被下载到本地
         prefetchNextSongs(mainWindow, 3)
       }

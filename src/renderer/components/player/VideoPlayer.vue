@@ -191,6 +191,22 @@ onMounted(() => {
         videoEl.value.currentTime = time
       }
     }))
+
+    // 单曲循环：重置 MV 画面并重新播放
+    ipcCleanups.push(window.electronAPI.onPlayerReplay(async () => {
+      if (playerStore.playerType !== 'audio') return
+      mvVideoEnded = false
+      lastEndedTime = 0
+      if (!videoUrl.value && playerStore.currentSong?.mvUrl) {
+        videoUrl.value = playerStore.currentSong.mvUrl
+        await nextTick()
+      }
+      if (videoEl.value) {
+        try { videoEl.value.currentTime = 0 } catch {}
+        videoEl.value.play().catch(() => {})
+      }
+      playerStore.playing = true
+    }))
     return
   }
 
@@ -244,6 +260,16 @@ onMounted(() => {
     if (playerStore.playerType === 'video' && videoEl.value) {
       videoEl.value.currentTime = time
     }
+  }))
+
+  // 单曲循环：B站视频从 0 秒重新播放
+  ipcCleanups.push(window.electronAPI.onPlayerReplay(() => {
+    if (playerStore.playerType !== 'video') return
+    lastEndedTime = 0
+    if (!videoEl.value) return
+    try { videoEl.value.currentTime = 0 } catch {}
+    videoEl.value.play().catch(() => {})
+    playerStore.playing = true
   }))
 })
 

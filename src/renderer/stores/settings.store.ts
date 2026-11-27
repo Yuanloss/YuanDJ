@@ -79,10 +79,46 @@ export const useSettingsStore = defineStore('settings', () => {
       }
       // 加载完成后启用防抖自动保存
       loaded = true
+      applyLyricStyleMigration()
+      applyRequestRulesMigration()
     } catch (e) {
       console.error('[SettingsStore] 加载应用数据失败:', e)
       loaded = true  // 即使加载失败也启用保存，避免设置永远无法写入
+      applyLyricStyleMigration()
+      applyRequestRulesMigration()
     }
+  }
+
+  /**
+   * 一次性迁移：把老的低可读歌词默认值升级为新的高可读默认值。
+   * 老用户库里存的是 16px / 跟主题色 / 不加粗，仅改 DEFAULT_SETTINGS 不会覆盖已存值，
+   * 所以这里显式升级一次；同时把「播放区透明」重置为默认关闭。
+   */
+  function applyLyricStyleMigration() {
+    if (settings.value.lyricStyleMigrated) return
+    settings.value.lyricFontSize = 24
+    settings.value.lyricColor = '#ffffff'
+    settings.value.lyricStrokeWidth = 2
+    settings.value.lyricStrokeBlur = 2
+    settings.value.lyricFontWeight = 'bold'
+    settings.value.lyricTransColor = 'rgba(255,255,255,0.82)'
+    settings.value.lyricTransFontSize = 18
+    settings.value.lyricTransStrokeWidth = 1
+    settings.value.lyricInactiveOpacity = 45
+    settings.value.playerTransparent = false
+    settings.value.lyricStyleMigrated = true
+  }
+
+  /**
+   * 一次性迁移：点歌规则默认改为「同用户 1 秒 / 同歌曲 10 秒 / 队列上限 50」。
+   * 老用户库里存的是 3 / 799 / 25，只改 DEFAULT_SETTINGS 不会生效。
+   */
+  function applyRequestRulesMigration() {
+    if (settings.value.requestRulesMigrated) return
+    settings.value.userCooldown = 1
+    settings.value.songCooldown = 10
+    settings.value.maxQueueSize = 50
+    settings.value.requestRulesMigrated = true
   }
 
   function toggleTheme() {

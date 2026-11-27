@@ -13,6 +13,9 @@ export const usePlayerStore = defineStore('player', () => {
   const playerType = ref<'audio' | 'video'>('audio')
   const lyrics = ref<LyricLine[]>([])
   const currentLyricIndex = ref(0)
+  // 界面状态：精简模式（只显示视频/歌词）与「仅播放区置顶」
+  const focusMode = ref(false)
+  const pinTop = ref(false)
 
   const settingsStore = useSettingsStore()
 
@@ -101,7 +104,7 @@ export const usePlayerStore = defineStore('player', () => {
     volume.value = Math.max(0, Math.min(100, vol))
   }
 
-  return { playing, currentSong, currentTime, duration, volume, playerType, lyrics, currentLyricIndex, progress, currentTimeStr, durationStr, updateState, updateTime, updateLyrics, play, pause, resume, next, prev, seek, setVolume }
+  return { playing, currentSong, currentTime, duration, volume, playerType, lyrics, currentLyricIndex, focusMode, pinTop, progress, currentTimeStr, durationStr, updateState, updateTime, updateLyrics, play, pause, resume, next, prev, seek, setVolume }
 })
 
 function formatTime(seconds: number): string {

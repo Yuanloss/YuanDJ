@@ -1,4 +1,4 @@
-# heart-rate.ps1 - 入口脚本
+﻿# heart-rate.ps1 - 入口脚本
 # 检测/编译 heart-rate.exe 并调用，透传 stdout 给 server.ts
 # 不再有 paired device fallback（旧版本的问题根源）
 param(
@@ -71,6 +71,16 @@ function Find-DotNetAssembly {
     return $null
 }
 
+function Stop-StaleHeartRateProcess {
+    # 旧的心率监测进程会锁住 exe，导致 csc 覆盖输出失败（CS0016）
+    try {
+        Get-Process -Name 'heart-rate' -ErrorAction SilentlyContinue | ForEach-Object {
+            try { $_.Kill() } catch { }
+        }
+        Start-Sleep -Milliseconds 500
+    } catch { }
+}
+
 function Build-Exe {
     if (-not (Test-Path $src)) {
         Write-Json @{ type = 'error'; message = "heart-rate.cs source not found at $src" }
@@ -113,9 +123,26 @@ function Build-Exe {
         $src
     )
 
-    & $csc @args
-    if ($LASTEXITCODE -ne 0) {
-        Write-Json @{ type = 'error'; message = "csc.exe compilation failed with exit code $LASTEXITCODE" }
+    # 编译前先清理残留进程（它锁着 old exe）
+    Stop-StaleHeartRateProcess
+
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $cscLog = & $csc @args 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    if ($code -ne 0) {
+        # 可能是 exe 被占用：再清一次进程后重试
+        Stop-StaleHeartRateProcess
+        try { if (Test-Path $exe) { Remove-Item $exe -Force -ErrorAction SilentlyContinue } } catch { }
+        $cscLog = & $csc @args 2>&1 | Out-String
+        $code = $LASTEXITCODE
+    }
+    $ErrorActionPreference = $prevEap
+
+    if ($code -ne 0) {
+        $detail = ($cscLog -replace '\s+', ' ').Trim()
+        if ($detail.Length -gt 280) { $detail = $detail.Substring(0, 280) }
+        Write-Json @{ type = 'error'; message = "csc.exe compilation failed (exit $code): $detail" }
         exit 1
     }
     if (-not (Test-Path $exe)) {
@@ -138,6 +165,10 @@ function Ensure-Exe {
 }
 
 Ensure-Exe
+
+# 单实例：清掉可能残留的旧 exe。孤儿进程会一直占着蓝牙链路，
+# 导致这次连接始终 AccessDenied（设备被占用）
+Stop-StaleHeartRateProcess
 
 # 调用 EXE 并透传参数
 # C# Console.WriteLine 是行缓冲，stdout 直接转发

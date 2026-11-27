@@ -1,5 +1,5 @@
-appId: com.taumata.bxncmdj
-productName: BxNcm DJ
+appId: com.yuanloss.yuandj
+productName: YuanDJ
 
 directories:
   output: release
@@ -32,12 +32,12 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: BxNcm DJ
-  uninstallDisplayName: BxNcm DJ
+  shortcutName: YuanDJ
+  uninstallDisplayName: YuanDJ
   menuCategory: true
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
-  artifactName: "BxNcm.DJ.Setup.${version}.${ext}"
+  artifactName: "YuanDJ.Setup.${version}.${ext}"
 
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
@@ -62,8 +62,8 @@ extraResources:
 # GitHub 自动更新发布配置
 publish:
   - provider: github
-    owner: Taumata-wwq
-    repo: BxNcm-DJ
+    owner: Yuanloss
+    repo: YuanDJ
     releaseType: release
 
 afterPack: "./scripts/after-pack.cjs"

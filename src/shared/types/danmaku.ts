@@ -7,6 +7,8 @@ export interface ParsedSongRequest {
   type: 'netease' | 'bilibili'
   keyword: string
   artist?: string
+  /** B站点歌的指定分P（从 1 开始），不填=第一P */
+  part?: number
 }
 
 export interface DanmakuMessage {
